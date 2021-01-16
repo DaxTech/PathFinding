@@ -34,6 +34,7 @@ class Game():
 		self.grid = self.grid_setup()
 		self.algorithm = PathFinder()
 		self.path = None
+		self.path2 = None
 		self.starting_point = None
 		self.locked = False
 		self.grid_after = self.grid
@@ -189,6 +190,13 @@ class Game():
 				path_rect = pygame.Rect((x, y, DIVIDER, DIVIDER))
 				pygame.draw.rect(SCREEN, RED, path_rect)
 				pygame.display.flip()
+			for y, x in self.path2:
+				CLOCK.tick(10)
+				y, x = y*DIVIDER, x*DIVIDER
+				self.draw_screen()	
+				path_rect = pygame.Rect((x, y, DIVIDER, DIVIDER))
+				pygame.draw.rect(SCREEN, PINK, path_rect)
+				pygame.display.flip()				
 
 	def main_loop(self):
 		running = True
@@ -198,10 +206,14 @@ class Game():
 				if not self.validate():
 					self.locked = False
 					continue
+				grid2 = deepcopy(self.grid)
 				self.starting_point = self.find_node(1)
 				self.path = self.algorithm.find_path(self.starting_point, self.grid)
 				del self.path[-1]
 				del self.path[0]
+				self.path2 = self.algorithm.depth_first_search(self.starting_point, grid2)
+				del self.path2[1]
+				del self.path2[-1]
 				self.display_path()
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
