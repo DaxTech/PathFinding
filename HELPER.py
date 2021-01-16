@@ -8,6 +8,7 @@ class Node:
         self.pos = position
         self.neighbors = self.find_neighbors()
         self.visited = False
+        self.parent = None
 
     def find_neighbors(self):
         y, x = self.pos

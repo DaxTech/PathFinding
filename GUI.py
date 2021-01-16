@@ -11,6 +11,8 @@ DIVIDER = 80
 GRID_WIDTH = 8
 GRID_HEIGHT = 8
 
+CLOCK = pygame.time.Clock()
+
 SCREEN = pygame.display.set_mode((WIDTH+EXTRA, HEIGHT))
 pygame.display.set_caption('PathFinder')
 
@@ -93,9 +95,6 @@ class Game():
 				x, y = j * DIVIDER, i * DIVIDER
 				if self.grid[i][j].value == 0:
 					pygame.draw.rect(SCREEN, BLACK, (x, y, DIVIDER, DIVIDER))
-				if self.path and (i, j) in self.path:
-					print('HELLO THERE')
-					pygame.draw.rect(SCREEN, RED, (x, y, DIVIDER, DIVIDER))
 				if self.grid[i][j].value == -1:
 					pygame.draw.rect(SCREEN, WHITE, (x, y, DIVIDER, DIVIDER))
 				if self.grid[i][j].value == 1:
@@ -173,6 +172,24 @@ class Game():
 				exit()
 			return
 
+	def display_path(self):
+		if not self.path:
+			return 
+		del self.path[0]
+		del self.path[-1]
+		while True:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					pygame.quit()
+					exit()
+			for y, x in self.path:
+				CLOCK.tick(10)
+				y, x = y*DIVIDER, x*DIVIDER
+				self.draw_screen()	
+				path_rect = pygame.Rect((x, y, DIVIDER, DIVIDER))
+				pygame.draw.rect(SCREEN, RED, path_rect)
+				pygame.display.flip()
+
 
 	def main_loop(self):
 		running = True
@@ -183,8 +200,8 @@ class Game():
 					self.locked = False
 					continue
 				self.starting_point = self.find_node(1)
-				self.algorithm.path_finder(self.starting_point, self.grid)
-				self.path = self.algorithm.reformat_path()
+				self.path = self.algorithm.find_path(self.starting_point, self.grid)
+				self.display_path()
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
 					running = False
@@ -207,30 +224,45 @@ class Game():
 
 
 class DFS:
-	def __init__(self):
-		self.path = []
-
-	def path_finder(self, node, board):
-		node.visited = True  # Avoid cycles.
-		if node.value == 2:  # Goal reached.
-			return True
-		for y, x in node.neighbors:
-			# No need to analyze this node.
-			if type(board[y][x]) == Wall or board[y][x].visited:
+	@staticmethod
+	def path_finder(start_node, board):
+		queue = [start_node]
+		for node in queue:
+			if node.visited:
 				continue
-			# Recursion.
-			if self.path_finder(board[y][x], board):
-				self.path.append((y, x))
-				return True
-		return False
+			node.visited = True
+			if node.value == 2:
+				goal = node
+			else:
+				queue += DFS.enqueue(node, board)
+		return goal
 
-	def reformat_path(self):
-		self.path.reverse()
-		return self.path
+	@staticmethod
+	def enqueue(node, board):
+		children = []
+		for y, x in node.neighbors:
+			if board[y][x].value == -1 or board[y][x].visited:
+				continue
+			else:
+				board[y][x].parent = node
+				children.append(board[y][x])
+		return children
+
+	@staticmethod
+	def find_path(start_node, board):
+		node = DFS.path_finder(start_node, board)
+		path = [node.pos]
+		while True:
+			parent = node.parent
+			if parent is None:
+				break
+			path.append(parent.pos)
+			node = parent
+		path.reverse()
+		return path
+
 
 
 if __name__ == '__main__':
 	run = Game()
-	print(SCREEN.get_width(), SCREEN.get_height())
 	run.main_loop()
-
