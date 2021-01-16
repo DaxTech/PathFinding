@@ -1,7 +1,7 @@
 """Depth-first-search algorithm. The shortest path is not assured."""
 
-WIDTH = 8
-HEIGHT = 8
+WIDTH = 16
+HEIGHT = 16
 
 class Node:
     def __init__(self, position):

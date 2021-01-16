@@ -3,13 +3,14 @@
 
 import pygame
 from HELPER import *
+from copy import deepcopy
 
 WIDTH = 640
 HEIGHT = 640
 EXTRA = 100
-DIVIDER = 80
-GRID_WIDTH = 8
-GRID_HEIGHT = 8
+DIVIDER = 40
+GRID_WIDTH = 16
+GRID_HEIGHT = 16
 
 CLOCK = pygame.time.Clock()
 
@@ -21,6 +22,7 @@ BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0,  255)
+PINK = (255, 105, 180)
 
 CENTER_A = (WIDTH+EXTRA//2, HEIGHT//4)
 CENTER_B = (WIDTH+EXTRA//2, HEIGHT//2+HEIGHT//4)
@@ -30,7 +32,7 @@ INSIDE_RADIUS = DIVIDER//2
 class Game():
 	def __init__(self):
 		self.grid = self.grid_setup()
-		self.algorithm = DFS()
+		self.algorithm = PathFinder()
 		self.path = None
 		self.starting_point = None
 		self.locked = False
@@ -175,8 +177,6 @@ class Game():
 	def display_path(self):
 		if not self.path:
 			return 
-		del self.path[0]
-		del self.path[-1]
 		while True:
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
@@ -190,7 +190,6 @@ class Game():
 				pygame.draw.rect(SCREEN, RED, path_rect)
 				pygame.display.flip()
 
-
 	def main_loop(self):
 		running = True
 		while running:
@@ -201,6 +200,8 @@ class Game():
 					continue
 				self.starting_point = self.find_node(1)
 				self.path = self.algorithm.find_path(self.starting_point, self.grid)
+				del self.path[-1]
+				del self.path[0]
 				self.display_path()
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
@@ -223,19 +224,32 @@ class Game():
 		pygame.quit()
 
 
-class DFS:
+class PathFinder:
 	@staticmethod
-	def path_finder(start_node, board):
+	def breadth_first_search(start_node, board):
 		queue = [start_node]
 		for node in queue:
 			if node.visited:
 				continue
 			node.visited = True
 			if node.value == 2:
-				goal = node
-			else:
-				queue += DFS.enqueue(node, board)
-		return goal
+				break
+			queue += PathFinder.enqueue(node, board)
+		return node
+
+	@staticmethod
+	def depth_first_search(node, board, path=[]):
+		if node.value == 2:
+			return path
+		for y, x in node.neighbors:
+			if board[y][x].value == -1 or board[y][x].visited:
+				continue
+			board[y][x].visited = True
+			if PathFinder.depth_first_search(board[y][x], board, path) is not None:
+				path.insert(0, board[y][x].pos)
+				return path
+			board[y][x].visited = False
+		return None
 
 	@staticmethod
 	def enqueue(node, board):
@@ -250,7 +264,7 @@ class DFS:
 
 	@staticmethod
 	def find_path(start_node, board):
-		node = DFS.path_finder(start_node, board)
+		node = PathFinder.breadth_first_search(start_node, board)
 		path = [node.pos]
 		while True:
 			parent = node.parent
