@@ -4,6 +4,7 @@
 import pygame
 from HELPER import *
 from copy import deepcopy
+import random
 
 WIDTH = 640
 HEIGHT = 640
@@ -23,6 +24,7 @@ GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0,  255)
 PINK = (255, 105, 180)
+CYAN = (0, 200, 200)
 
 CENTER_A = (WIDTH+EXTRA//2, HEIGHT//4)
 CENTER_B = (WIDTH+EXTRA//2, HEIGHT//2+HEIGHT//4)
@@ -34,7 +36,6 @@ class Game():
 		self.grid = self.grid_setup()
 		self.algorithm = PathFinder()
 		self.path = None
-		self.path2 = None
 		self.starting_point = None
 		self.locked = False
 		self.grid_after = self.grid
@@ -59,11 +60,11 @@ class Game():
 			for j in range(GRID_WIDTH):
 				if type(self.grid[i][j]) == A:
 					counts += 1
-				if type(self.grid[i][j]) == B: 
+				if type(self.grid[i][j]) == B:
 					counts += 1
 		if not counts == 2:
 			return False
-		return True 
+		return True
 
 	def update_grid(self, coordinates, element):
 		x, y = self.get_screen_pos(coordinates)
@@ -97,7 +98,10 @@ class Game():
 			for j in range(GRID_WIDTH):
 				x, y = j * DIVIDER, i * DIVIDER
 				if self.grid[i][j].value == 0:
-					pygame.draw.rect(SCREEN, BLACK, (x, y, DIVIDER, DIVIDER))
+					if self.grid[i][j].visited:
+						pygame.draw.rect(SCREEN, CYAN, (x, y, DIVIDER, DIVIDER))
+					else:
+						pygame.draw.rect(SCREEN, BLACK, (x, y, DIVIDER, DIVIDER))
 				if self.grid[i][j].value == -1:
 					pygame.draw.rect(SCREEN, WHITE, (x, y, DIVIDER, DIVIDER))
 				if self.grid[i][j].value == 1:
@@ -129,7 +133,7 @@ class Game():
 		pygame.draw.circle(SCREEN, BLUE, CENTER_A,
 		   					RADIUS)
 		pygame.draw.circle(SCREEN, GREEN, CENTER_B,
-						   RADIUS)		
+						   RADIUS)
 		pygame.display.flip()
 
 	def selected(self, coordinates):
@@ -137,7 +141,7 @@ class Game():
 		ax, ay = CENTER_A[0] - RADIUS, CENTER_A[1] - RADIUS
 		bx, by = CENTER_B[0] - RADIUS, CENTER_B[1] - RADIUS
 		circle_area_A = [(j, i) for i in range(ay, ay+RADIUS*2+1) for j in range(ax, ax+RADIUS*2+1)]
-		circle_area_B = [(j, i) for i in range(by, by+RADIUS*2+1) for j in range(bx, bx+RADIUS*2+1)]	
+		circle_area_B = [(j, i) for i in range(by, by+RADIUS*2+1) for j in range(bx, bx+RADIUS*2+1)]
 
 		if coordinates in circle_area_A:
 			return 1
@@ -177,26 +181,23 @@ class Game():
 
 	def display_path(self):
 		if not self.path:
-			return 
+			return
 		while True:
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
 					pygame.quit()
 					exit()
 			for y, x in self.path:
-				CLOCK.tick(10)
+				for event in pygame.event.get():
+					if event.type == pygame.QUIT:
+						pygame.quit()
+						exit()
+				pygame.time.delay(30)
 				y, x = y*DIVIDER, x*DIVIDER
-				self.draw_screen()	
-				path_rect = pygame.Rect((x, y, DIVIDER, DIVIDER))
+				self.draw_screen()
+				path_rect = pygame.Rect(x, y, DIVIDER, DIVIDER)
 				pygame.draw.rect(SCREEN, RED, path_rect)
 				pygame.display.flip()
-			for y, x in self.path2:
-				CLOCK.tick(10)
-				y, x = y*DIVIDER, x*DIVIDER
-				self.draw_screen()	
-				path_rect = pygame.Rect((x, y, DIVIDER, DIVIDER))
-				pygame.draw.rect(SCREEN, PINK, path_rect)
-				pygame.display.flip()				
 
 	def main_loop(self):
 		running = True
@@ -206,14 +207,15 @@ class Game():
 				if not self.validate():
 					self.locked = False
 					continue
-				grid2 = deepcopy(self.grid)
 				self.starting_point = self.find_node(1)
-				self.path = self.algorithm.find_path(self.starting_point, self.grid)
+				self.path = self.algorithm.DFS(self.starting_point, self.grid)
+				if self.path == False:
+					running = False
+					break
+				if self.path is None:
+					raise Exception('No path found')
 				del self.path[-1]
 				del self.path[0]
-				self.path2 = self.algorithm.depth_first_search(self.starting_point, grid2)
-				del self.path2[1]
-				del self.path2[-1]
 				self.display_path()
 			for event in pygame.event.get():
 				if event.type == pygame.QUIT:
@@ -238,29 +240,59 @@ class Game():
 
 class PathFinder:
 	@staticmethod
-	def breadth_first_search(start_node, board):
+	def BFS(start_node, board):
 		queue = [start_node]
 		for node in queue:
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					return False
 			if node.visited:
 				continue
 			node.visited = True
 			if node.value == 2:
-				break
+				return PathFinder.find_path(node, board)
 			queue += PathFinder.enqueue(node, board)
-		return node
+			if node is not start_node:
+				CLOCK.tick(60)
+				y, x= node.pos[0]*DIVIDER, node.pos[1]*DIVIDER
+				NODE_RECT = pygame.Rect(x, y, DIVIDER, DIVIDER)
+				pygame.draw.rect(SCREEN, CYAN, NODE_RECT)
+				pygame.display.flip()
+		raise Exception('No path found')
 
 	@staticmethod
-	def depth_first_search(node, board, path=[]):
+	def DFS(node, board, path=[0], skipped=False):
 		if node.value == 2:
 			return path
+		y1, x1 = node.pos[0]*DIVIDER, node.pos[1]*DIVIDER
+		node_rect = pygame.Rect(x1, y1, DIVIDER, DIVIDER)
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				return False
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_SPACE:
+					skipped = True
+		node.visited = True
 		for y, x in node.neighbors:
 			if board[y][x].value == -1 or board[y][x].visited:
 				continue
+			if board[y][x].value == 2:
+				return path
 			board[y][x].visited = True
-			if PathFinder.depth_first_search(board[y][x], board, path) is not None:
+			if not skipped and not type(node) == A:
+				CLOCK.tick(60)
+				pygame.draw.rect(SCREEN, CYAN, node_rect)
+				pygame.display.flip()
+			results = PathFinder.DFS(board[y][x], board, path, skipped=skipped)
+			if results == False:
+				return False
+			if  results is not None:
 				path.insert(0, board[y][x].pos)
 				return path
 			board[y][x].visited = False
+			if not skipped:
+				pygame.draw.rect(SCREEN, BLACK, node_rect)
+				pygame.display.flip()
 		return None
 
 	@staticmethod
@@ -275,8 +307,7 @@ class PathFinder:
 		return children
 
 	@staticmethod
-	def find_path(start_node, board):
-		node = PathFinder.breadth_first_search(start_node, board)
+	def find_path(node, board):
 		path = [node.pos]
 		while True:
 			parent = node.parent
