@@ -238,38 +238,47 @@ class Game():
 		pygame.quit()
 
 
+# Important, comment out the PathFinder.draw_nodes() lines and the 
+# pygame.event handler loop if you're running this on a text-based version.
 class PathFinder:
+
+	@staticmethod
+	def draw_nodes(coordinates, color):
+		CLOCK.tick(60)  # frames per second (FPS)
+		y, x = coordinates
+		y, x = y * DIVIDER, x * DIVIDER
+		node_rect = pygame.Rect(x, y, DIVIDER, DIVIDER)
+		pygame.draw.rect(SCREEN, color, node_rect)
+		pygame.display.flip()
+
 	@staticmethod
 	def BFS(start_node, board):
-		queue = [start_node]
-		for node in queue:
-			for event in pygame.event.get():
+		queue = [start_node]  # creates main queue with starting node.
+		for node in queue:  
+			# Handles pygame events to avoid "Not responding" errors.
+			for event in pygame.event.get():  
 				if event.type == pygame.QUIT:
 					return False
-			if node.visited:
+			if node.visited:  # skips visited nodes.
 				continue
 			node.visited = True
 			if node.value == 2:
-				return PathFinder.find_path(node, board)
-			queue += PathFinder.enqueue(node, board)
-			if node is not start_node:
-				CLOCK.tick(60)
-				y, x= node.pos[0]*DIVIDER, node.pos[1]*DIVIDER
-				NODE_RECT = pygame.Rect(x, y, DIVIDER, DIVIDER)
-				pygame.draw.rect(SCREEN, CYAN, NODE_RECT)
-				pygame.display.flip()
-		raise Exception('No path found')
+				return PathFinder.find_path(node, board)  # Formats the path.
+			queue += PathFinder.enqueue(node, board)  # Adds children to the queue.
+			if node is not start_node:  # Visualization of the process.
+				PathFinder.draw_nodes(node.pos, CYAN)
+		return None
 
 	@staticmethod
 	def DFS(node, board, path=[0], skipped=False):
 		if node.value == 2:
 			return path
-		y1, x1 = node.pos[0]*DIVIDER, node.pos[1]*DIVIDER
-		node_rect = pygame.Rect(x1, y1, DIVIDER, DIVIDER)
+		# Handles pygame events to avoid "Not responding" errors.
 		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
+			if event.type == pygame.QUIT:  # The user quitted.
 				return False
 			if event.type == pygame.KEYDOWN:
+				# The user skips the visualization.
 				if event.key == pygame.K_SPACE:
 					skipped = True
 		node.visited = True
@@ -278,21 +287,17 @@ class PathFinder:
 				continue
 			if board[y][x].value == 2:
 				return path
-			board[y][x].visited = True
 			if not skipped and not type(node) == A:
-				CLOCK.tick(60)
-				pygame.draw.rect(SCREEN, CYAN, node_rect)
-				pygame.display.flip()
+				PathFinder.draw_nodes(node.pos, CYAN)
 			results = PathFinder.DFS(board[y][x], board, path, skipped=skipped)
 			if results == False:
 				return False
 			if  results is not None:
 				path.insert(0, board[y][x].pos)
 				return path
-			board[y][x].visited = False
 			if not skipped:
-				pygame.draw.rect(SCREEN, BLACK, node_rect)
-				pygame.display.flip()
+				PathFinder.draw_nodes(node.pos, BLACK)
+		#node.visited = False
 		return None
 
 	@staticmethod
