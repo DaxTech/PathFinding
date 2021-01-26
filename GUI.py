@@ -1,330 +1,198 @@
-#! python3
-"""GUI. Allow user to set the walls."""
+"""GUI and visualization."""
 
 import pygame
+import sys
+import os
 from HELPER import *
-from copy import deepcopy
-import random
+from MAZES import *
 
-WIDTH = 640
-HEIGHT = 640
-EXTRA = 100
-DIVIDER = 40
-GRID_WIDTH = 16
-GRID_HEIGHT = 16
-
-CLOCK = pygame.time.Clock()
-
-SCREEN = pygame.display.set_mode((WIDTH+EXTRA, HEIGHT))
-pygame.display.set_caption('PathFinder')
-
+# Colors:
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-GREEN = (0, 255, 0)
 RED = (255, 0, 0)
-BLUE = (0, 0,  255)
-PINK = (255, 105, 180)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
 CYAN = (0, 200, 200)
 
-CENTER_A = (WIDTH+EXTRA//2, HEIGHT//4)
-CENTER_B = (WIDTH+EXTRA//2, HEIGHT//2+HEIGHT//4)
-RADIUS = 40
-INSIDE_RADIUS = DIVIDER//2
+GREENISH = (149, 242, 101)
+YELLOW = (255, 237, 18)
+ORANGE = (255, 124, 0)
 
-class Game():
-	def __init__(self):
-		self.grid = self.grid_setup()
-		self.algorithm = PathFinder()
-		self.path = None
-		self.starting_point = None
-		self.locked = False
-		self.grid_after = self.grid
-		self.grid_before = self.grid
+WIDTH, HEIGHT = 730, 630
+SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
+CLOCK = pygame.time.Clock()
 
-	def grid_setup(self):
-		grid = [[Free((i, j)) for j in range(GRID_WIDTH)] for i in range(GRID_HEIGHT)]
-		# grid[0][0] = A((0, 0))
-		# grid[GRID_HEIGHT-1][GRID_WIDTH-1] = B((GRID_HEIGHT-1, GRID_WIDTH-1))
+# Images:
+RAT = pygame.image.load(os.path.join('.', 'rat2.png'))  # big
+CHEESE = pygame.image.load(os.path.join('.', 'cheese.png'))  # big
 
-		return grid
+class Game:
+    def __init__(self, height=21, width=21, cwidth=11, cheight=11,div=30):
+        # cwidth & cheight account for what the size of maze the computer will be using to create the mazes.
+        self.width, self.height = width, height
+        self.cwidth, self.cheight = cwidth, cheight
+        self.div = div
+        self.maze = None
+        self.font = pygame.font.SysFont('DoppioOne-Regular.ttf', 72)
 
-	def find_node(self, value):
-		for i in range(GRID_HEIGHT):
-			for j in range(GRID_WIDTH):
-				if self.grid[i][j].value == value:
-					return self.grid[i][j]
+    def get_pos(self, coordinates):
+        x, y = coordinates
+        return x//self.div*self.div, y//self.div*self.div
 
-	def validate(self):
-		counts = 0
-		for i in range(GRID_HEIGHT):
-			for j in range(GRID_WIDTH):
-				if type(self.grid[i][j]) == A:
-					counts += 1
-				if type(self.grid[i][j]) == B:
-					counts += 1
-		if not counts == 2:
-			return False
-		return True
+    def get_grid_pos(self, coordinates):
+        x, y = coordinates
+        return y//self.div, x//self.div
 
-	def update_grid(self, coordinates, element):
-		x, y = self.get_screen_pos(coordinates)
-		x1, y1 = self.get_grid_pos(x, y)
-		if element.lower() == 'wall':
-			if type(self.grid[y1][x1]) == Free:
-				self.grid[y1][x1] = Wall((y1, x1))
-				#pygame.draw.rect(SCREEN, WHITE, (x, y, DIVIDER, DIVIDER))
-		elif element.lower() == 'free':
-			if not type(self.grid[y1][x1]) == Free:
-				self.grid[y1][x1] = Free((y1, x1))
-				#pygame.draw.rect(SCREEN, BLACK, (x, y, DIVIDER, DIVIDER))
-		elif element.lower() == 'a':
-			a = self.find_node(1)
-			if a is not None:
-				y2, x2 = a.pos
-				self.grid[y2][x2] = Free((y2, x2))
-			if type(self.grid[y1][x1]) == Free:
-				self.grid[y1][x1] = A((y1, x1))
-		elif element.lower() == 'b':
-			b = self.find_node(2)
-			if b is not None:
-				y2, x2 = b.pos
-				self.grid[y2][x2] = Free((y2, x2))
-			if type(self.grid[y1][x1]) == Free:
-				self.grid[y1][x1] = B((y1, x1))
-		#pygame.display.flip()
+    def update_grid(self, coordinates, wall=False):
+        i, j = self.get_grid_pos(coordinates)
+        x, y = self.get_pos(coordinates)
+        rect_area = pygame.Rect(x, y, self.div, self.div)
+        color = GREENISH if not wall else BLACK
+        self.maze[i][j].is_wall = False if not wall else True
+        pygame.draw.rect(SCREEN, color, rect_area)
+        pygame.display.flip()
 
-	def draw_screen(self):
-		for i in range(GRID_HEIGHT):
-			for j in range(GRID_WIDTH):
-				x, y = j * DIVIDER, i * DIVIDER
-				if self.grid[i][j].value == 0:
-					if self.grid[i][j].visited:
-						pygame.draw.rect(SCREEN, CYAN, (x, y, DIVIDER, DIVIDER))
-					else:
-						pygame.draw.rect(SCREEN, BLACK, (x, y, DIVIDER, DIVIDER))
-				if self.grid[i][j].value == -1:
-					pygame.draw.rect(SCREEN, WHITE, (x, y, DIVIDER, DIVIDER))
-				if self.grid[i][j].value == 1:
-					pygame.draw.circle(SCREEN, BLUE, (x+INSIDE_RADIUS, y+INSIDE_RADIUS), INSIDE_RADIUS)
-				if self.grid[i][j].value == 2:
-					pygame.draw.circle(SCREEN, GREEN, (x+INSIDE_RADIUS, y+INSIDE_RADIUS), INSIDE_RADIUS)
-		self.drawing_tool()
-		pygame.display.flip()
+    def draw(self):
+        for row in self.maze:
+            for cell in row:
+                CLOCK.tick(60)
+                self.mouse_pressed()
+                event_handler()
+                x, y  = cell.x*self.div, cell.y*self.div
+                cell_area = pygame.Rect(x, y, self.div, self.div)
+                if not cell.is_wall:
+                    pygame.draw.rect(SCREEN, GREENISH, cell_area)
+                else:
+                    pygame.draw.rect(SCREEN, BLACK, cell_area)
+                pygame.display.flip()
 
-	def clear_screen(self):
-		self.grid = [[Free((i, j)) for j in range(GRID_WIDTH)] for i in range(GRID_HEIGHT)]
+    def mouse_pressed(self):
+        # Drawing onto the screen.
+        if pygame.mouse.get_pressed()[0]: # left mouse button pressed.
+            position = pygame.mouse.get_pos()
+            self.update_grid(position)
+        if pygame.mouse.get_pressed()[2]: # right button pressed.
+            position = pygame.mouse.get_pos()
+            self.update_grid(position, wall=True)
 
-	def get_screen_pos(self, coordinates):
-		x, y = coordinates
-		return x//DIVIDER*DIVIDER, y//DIVIDER*DIVIDER
+    def main_loop(self):
+        SCREEN.fill(BLACK)
+        pygame.display.flip()
+        running = True
+        #self.maze = binary_tree(self.cwidth, self.cheight)
+        self.maze = dfs_generator(self.cwidth, self.cheight)
+        #self.maze = [[Cell((i, j), is_wall=True, width=2*self.width-1, height=2*self.height-1) for j in range(2*self.width-1)] for i in range(2*self.height-1)]
+        while running:
+            CLOCK.tick(60)
+            self.draw()
+            # Event handling.
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+            self.mouse_pressed()
+        pygame.quit()
+        sys.exit(1)
 
-	def get_grid_pos(self, x, y):
-		return x//DIVIDER, y//DIVIDER
+    def menu_helper(self):
+        SCREEN.fill(BLACK)
+        title = self.font.render('A RAT IN A MAZE', 1, WHITE)  # Length: 418px Height: 72px
+        change_size = self.font.render('GRID SIZE', 1, WHITE)  # Length 255 Height: 72px
+        play = self.font.render('PLAY', 1, WHITE)  # Length: 128px Height: 72px
+        SCREEN.blit(title, (156, 28))
+        SCREEN.blit(play, (301, 418))
+        SCREEN.blit(change_size, (237, 518))
+        SCREEN.blit(RAT, (172, 100))
+        SCREEN.blit(CHEESE, (428, 100))
+        pygame.draw.rect(SCREEN, WHITE, (291, 408, 148, 75), width=3)
+        pygame.draw.rect(SCREEN, WHITE, (227, 508, 275, 75), width=3)
+        pygame.display.flip()
 
-	def print_grid(self):
-		for i in range(GRID_HEIGHT):
-			for j in range(GRID_WIDTH):
-				print(self.grid[i][j].value, end='|')
-			print()
-		print()
+    def grid_options(self):
+        # MAZE SIZES: 9x9 (5x5) DIV: 70, 15x15 (8x8) DIV: 42, 21x21 (11x11) DIV: 30, 63x63 (32x32) DIV:10
+        SCREEN.fill(BLACK)
+        messages = [
+        'SELECT GRID SIZE:',
+        'SMALL(9X9)',
+        'MEDIUM(15x15)',
+        'LARGE(21x21)',
+        'EXTRA LARGE(63x63)',
+        ]
+        areas = []
+        colors = [WHITE, GREENISH, YELLOW, ORANGE, RED]
+        for msg, color in zip(messages, colors):
+            text = self.font.render(msg, 1, color)
+            x, y = text.get_size()
+            x_pos = (WIDTH - x) // 2
+            y_pos = 28 + 100*messages.index(msg)
+            if not messages.index(msg) == 0:
+                pygame.draw.rect(SCREEN, color, (x_pos-10, y_pos-10, x+20, y+20), width=3)
+                area = [(j, i) for j in range(x_pos, x_pos+x+20) for i in range(y_pos, y_pos+y+20)]
+                areas.append(area)
+            SCREEN.blit(text, (x_pos, y_pos))
+        pygame.display.flip()
+        return areas
 
-	def drawing_tool(self):
-		pygame.draw.rect(SCREEN, BLACK, (WIDTH, 0, EXTRA, HEIGHT))
-		pygame.draw.circle(SCREEN, BLUE, CENTER_A,
-		   					RADIUS)
-		pygame.draw.circle(SCREEN, GREEN, CENTER_B,
-						   RADIUS)
-		pygame.display.flip()
+    def apply_changes(self, size):
+        if size.lower() == "small":
+            self.width, self.height = 9, 9
+            self.cwidth, self.cheight = 5, 5
+            self.div = 70
+        elif size.lower() == "medium":
+            self.width, self.height = 15, 15
+            self.cwidth, self.cheight = 8, 8
+            self.div = 42
+        elif size.lower() == "large":
+            self.width, self.height = 21, 21
+            self.cwidth, self.cheight = 11, 11
+            self.div = 30
+        elif size.lower() == "extra large":
+            self.width, self.height = 63, 63
+            self.cwidth, self.cheight = 32, 32
+            self.div = 10
+        return
 
-	def selected(self, coordinates):
-		# Top-left corners:
-		ax, ay = CENTER_A[0] - RADIUS, CENTER_A[1] - RADIUS
-		bx, by = CENTER_B[0] - RADIUS, CENTER_B[1] - RADIUS
-		circle_area_A = [(j, i) for i in range(ay, ay+RADIUS*2+1) for j in range(ax, ax+RADIUS*2+1)]
-		circle_area_B = [(j, i) for i in range(by, by+RADIUS*2+1) for j in range(bx, bx+RADIUS*2+1)]
-
-		if coordinates in circle_area_A:
-			return 1
-		if coordinates in circle_area_B:
-			return 2
-		return 0
-
-	def move_point(self, point):
-		quit = False
-		if point == 0:
-			return
-		else:
-			color = BLUE if point == 1 else GREEN
-			update = 'A' if point == 1 else 'B'
-			running = True
-			while running:
-				self.draw_screen()
-				for event in pygame.event.get():
-					if event.type == pygame.QUIT:
-						quit = True
-						running = False
-					if event.type == pygame.KEYDOWN:
-						if event.key == pygame.K_RETURN:
-							running = False
-				if pygame.mouse.get_pressed()[0]:
-					cords = self.get_screen_pos(pygame.mouse.get_pos())
-					if not cords[0] >= WIDTH:
-						self.update_grid(cords, update)
-				if pygame.mouse.get_pressed()[2]:
-					cords = self.get_screen_pos(pygame.mouse.get_pos())
-					if not cords[0] >= WIDTH:
-						self.update_grid(cords, 'free')
-			if quit:
-				pygame.quit()
-				exit()
-			return
-
-	def display_path(self):
-		if not self.path:
-			return
-		while True:
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					pygame.quit()
-					exit()
-			for y, x in self.path:
-				for event in pygame.event.get():
-					if event.type == pygame.QUIT:
-						pygame.quit()
-						exit()
-				pygame.time.delay(30)
-				y, x = y*DIVIDER, x*DIVIDER
-				self.draw_screen()
-				path_rect = pygame.Rect(x, y, DIVIDER, DIVIDER)
-				pygame.draw.rect(SCREEN, RED, path_rect)
-				pygame.display.flip()
-
-	def main_loop(self):
-		running = True
-		while running:
-			self.draw_screen()
-			if self.locked:
-				if not self.validate():
-					self.locked = False
-					continue
-				self.starting_point = self.find_node(1)
-				self.path = self.algorithm.DFS(self.starting_point, self.grid)
-				if self.path == False:
-					running = False
-					break
-				if self.path is None:
-					raise Exception('No path found')
-				del self.path[-1]
-				del self.path[0]
-				self.display_path()
-			for event in pygame.event.get():
-				if event.type == pygame.QUIT:
-					running = False
-				if event.type == pygame.KEYDOWN:
-					if event.key == pygame.K_SPACE:
-						self.locked = True
-					if event.key == pygame.K_BACKSPACE:
-						self.clear_screen()
-			if pygame.mouse.get_pressed()[0]:
-				cords = pygame.mouse.get_pos()
-				if not cords[0] >= WIDTH:
-					self.update_grid(cords, 'wall')
-				else:
-					self.move_point(self.selected(cords))
-			if pygame.mouse.get_pressed()[2]:
-				cords = pygame.mouse.get_pos()
-				if not cords[0] >= WIDTH:
-					self.update_grid(cords, 'free')
-		pygame.quit()
-
-
-# Important, comment out the PathFinder.draw_nodes() lines and the 
-# pygame.event handler loop if you're running this on a text-based version.
-class PathFinder:
-
-	@staticmethod
-	def draw_nodes(coordinates, color):
-		CLOCK.tick(60)  # frames per second (FPS)
-		y, x = coordinates
-		y, x = y * DIVIDER, x * DIVIDER
-		node_rect = pygame.Rect(x, y, DIVIDER, DIVIDER)
-		pygame.draw.rect(SCREEN, color, node_rect)
-		pygame.display.flip()
-
-	@staticmethod
-	def BFS(start_node, board):
-		queue = [start_node]  # creates main queue with starting node.
-		for node in queue:  
-			# Handles pygame events to avoid "Not responding" errors.
-			for event in pygame.event.get():  
-				if event.type == pygame.QUIT:
-					return False
-			if node.visited:  # skips visited nodes.
-				continue
-			node.visited = True
-			if node.value == 2:
-				return PathFinder.find_path(node, board)  # Formats the path.
-			queue += PathFinder.enqueue(node, board)  # Adds children to the queue.
-			if node is not start_node:  # Visualization of the process.
-				PathFinder.draw_nodes(node.pos, CYAN)
-		return None
-
-	@staticmethod
-	def DFS(node, board, path=[0], skipped=False):
-		if node.value == 2:
-			return path
-		# Handles pygame events to avoid "Not responding" errors.
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:  # The user quitted.
-				return False
-			if event.type == pygame.KEYDOWN:
-				# The user skips the visualization.
-				if event.key == pygame.K_SPACE:
-					skipped = True
-		node.visited = True
-		for y, x in node.neighbors:
-			if board[y][x].value == -1 or board[y][x].visited:
-				continue
-			if board[y][x].value == 2:
-				return path
-			if not skipped and not type(node) == A:
-				PathFinder.draw_nodes(node.pos, CYAN)
-			results = PathFinder.DFS(board[y][x], board, path, skipped=skipped)
-			if results == False:
-				return False
-			if  results is not None:
-				path.insert(0, board[y][x].pos)
-				return path
-			if not skipped:
-				PathFinder.draw_nodes(node.pos, BLACK)
-		#node.visited = False
-		return None
-
-	@staticmethod
-	def enqueue(node, board):
-		children = []
-		for y, x in node.neighbors:
-			if board[y][x].value == -1 or board[y][x].visited:
-				continue
-			else:
-				board[y][x].parent = node
-				children.append(board[y][x])
-		return children
-
-	@staticmethod
-	def find_path(node, board):
-		path = [node.pos]
-		while True:
-			parent = node.parent
-			if parent is None:
-				break
-			path.append(parent.pos)
-			node = parent
-		path.reverse()
-		return path
+    def grid_menu(self):
+        selection_areas = self.grid_options()
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit(1)
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.pos in selection_areas[0]:  # small
+                        self.apply_changes('small')
+                        running = False
+                    if event.pos in selection_areas[1]:  # medium
+                        self.apply_changes('medium')
+                        running = False
+                    if event.pos in selection_areas[2]:  # large
+                        self.apply_changes('large')
+                        running = False
+                    if event.pos in selection_areas[3]:  # extra large
+                        self.apply_changes('extra large')
+                        running = False
+        return
 
 
 
-if __name__ == '__main__':
-	run = Game()
-	run.main_loop()
+    def main_menu(self):
+        play_area = [(x, y) for x in range(291, 291+148) for y in range(408, 408+75)]
+        size_area = [(x, y) for x in range(227, 227+275) for y in range(508, 508+75)]
+        running = True
+        while running:
+            self.menu_helper()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit(1)
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.pos in play_area:
+                        self.main_loop()
+                    if event.pos in size_area:
+                        self.grid_menu()
+
+if __name__ == "__main__":
+    pygame.init()
+    run = Game()
+    run.main_menu()
