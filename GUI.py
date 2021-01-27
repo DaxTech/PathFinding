@@ -36,7 +36,7 @@ class Game:
         self.cwidth, self.cheight = cwidth, cheight
         self.div = div
         self.from_menu = False  # Block mouse_pressed event
-        self.slow_down = False
+        self.slow_down = False  # Decides on the speed of the maze generation visualization
         self.maze = None
         self.rat = pygame.transform.scale(RAT, (div, div))
         self.cheese = pygame.transform.scale(CHEESE, (div, div))
@@ -144,7 +144,6 @@ class Game:
         right_areas = self.right_buttons(['MAZES', 'PATHS'], [ORANGE, LIGHT_GREEN])
         right_areas += self.rat_cheese_selector()
         right_areas.append(self.clear_button())
-        print(len(right_areas))
         if pos in right_areas[0]:
             self.maze_menu()
             return True
