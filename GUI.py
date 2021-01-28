@@ -54,13 +54,46 @@ class Game:
         x, y = coordinates
         return y//self.div, x//self.div
 
-    def update_grid(self, coordinates, wall=False):
+    @staticmethod
+    def center(n):
+        return (WIDTH-n)//2
+
+    def event_handler(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(1)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                return self.outbound_click(event.pos)
+
+    def update_grid(self, coordinates, wall=False, value=0):
         i, j = self.get_grid_pos(coordinates)
         x, y = self.get_pos(coordinates)
         rect_area = pygame.Rect(x, y, self.div, self.div)
         color = BLACK if not wall else WHITE
-        self.maze[i][j].is_wall = False if not wall else True
-        pygame.draw.rect(SCREEN, color, rect_area)
+        if self.maze[i][j].is_wall and not value == 0:
+            self.maze[i][j].is_wall = True
+        else:
+            self.maze[i][j].is_wall = False if not wall else True
+        if not value == 0:
+            img = False
+            for row in self.maze:
+                for cell in row:
+                    if cell.value == value and not (cell.y, cell.x) == (i, j):
+                        img = cell
+                        break
+            if img:
+                img.value = 0
+        self.maze[i][j].value = value
+        if not value == 0:
+            blit_img = self.rat if value == 1 else self.cheese
+            pygame.draw.rect(SCREEN, BLACK, rect_area)
+            SCREEN.blit(blit_img, (x, y))
+            if img:
+                color = BLACK if not img.is_wall else WHITE
+                pygame.draw.rect(SCREEN, color, (img.x*self.div, img.y*self.div, self.div, self.div))
+        else:
+            pygame.draw.rect(SCREEN, color, rect_area)
         pygame.display.flip()
 
     def reset_maze(self):
@@ -80,13 +113,20 @@ class Game:
                     CLOCK.tick(120)
                 if self.mouse_pressed():
                     return  # cut-off to avoid over-drawing the past maze.
-                event_handler()
+                if self.event_handler():
+                    return
                 x, y  = cell.x*self.div, cell.y*self.div
                 cell_area = pygame.Rect(x, y, self.div, self.div)
-                if not cell.is_wall:
-                    pygame.draw.rect(SCREEN, BLACK, cell_area)
+                if not cell.value == 0:
+                        pygame.draw.rect(SCREEN, BLACK, cell_area)
+                        blit_img = self.rat if cell.value == 1 else self.cheese
+                        SCREEN.blit(blit_img, (x, y))
                 else:
-                    pygame.draw.rect(SCREEN, WHITE, cell_area)
+                    if not cell.is_wall:
+                        if cell.value == 0:
+                            pygame.draw.rect(SCREEN, BLACK, cell_area)
+                    else:
+                        pygame.draw.rect(SCREEN, WHITE, cell_area)
                 pygame.display.flip()
         self.slow_down = False
 
@@ -110,7 +150,7 @@ class Game:
             y = 38 + 100 * text.index(msg)
             SCREEN.blit(message, (x, y))
             pygame.draw.rect(SCREEN, color, (x-10, y-10, message.get_width()+20, message.get_height()+20), width=3)
-            a = [(j, i) for j in range(x-10, x+message.get_width()+10) for i in range(y-10, 2*y+10)]
+            a = [(j, i) for j in range(x-10, x+message.get_width()+10) for i in range(y-10, y+message.get_height()+10)]
             areas.append(a)
         pygame.display.flip()
         return areas
@@ -122,11 +162,11 @@ class Game:
         screen_left = 630+self.div
         rat_x = screen_left + (WIDTH-screen_left-160)//2
         cheese_x = rat_x + 96  # 10 pixels of difference so they are not too close to each other.
-        SCREEN.blit(rat_img, (rat_x-10, 220))
-        SCREEN.blit(cheese_img, (cheese_x, 230))
+        SCREEN.blit(rat_img, (rat_x-10, 240))
+        SCREEN.blit(cheese_img, (cheese_x, 250))
         pygame.display.flip()
-        areas.append([(x, y) for x in range(rat_x-10, rat_x+96-10) for y in range(220, 220+96)])
-        areas.append([(x, y) for x in range(cheese_x, cheese_x+64) for y in range(230, 230+64)])
+        areas.append([(x, y) for x in range(rat_x-10, rat_x+96-10) for y in range(240, 240+96)])
+        areas.append([(x, y) for x in range(cheese_x, cheese_x+64) for y in range(250, 250+64)])
         return areas
 
     def clear_button(self):
@@ -146,17 +186,15 @@ class Game:
         right_areas.append(self.clear_button())
         if pos in right_areas[0]:
             self.maze_menu()
-            return True
         if pos in right_areas[1]:
             self.pathfinding_menu()
-            return True
         if pos in right_areas[2]:
-            return True
+            self.move_img('rat')
         if pos in right_areas[3]:
-            return True
+            self.move_img('cheese')
         if pos in right_areas[4]:
             self.reset_maze()
-            return True
+        return True
 
     def mouse_pressed(self):
         # Drawing onto the screen
@@ -166,13 +204,32 @@ class Game:
         if pygame.mouse.get_pressed()[0]: # left mouse button pressed.
             position = pygame.mouse.get_pos()
             if not position[0] >= 630:
-                self.update_grid(position, wall=True)
-            else:
-                return self.outbound_click(position)
+                y, x = self.get_grid_pos(position)
+                if self.maze[y][x].value == 1:
+                    self.move_img('rat')
+                elif self.maze[y][x].value == 2:
+                    self.move_img('cheese')
+                else:
+                    self.update_grid(position, wall=True)
         if pygame.mouse.get_pressed()[2]: # right button pressed.
             position = pygame.mouse.get_pos()
             if not position[0] >= 630:
                 self.update_grid(position)
+        return
+
+    def move_img(self, img):
+        moving = True
+        while moving:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONUP:
+                    moving = False
+                    break
+            if pygame.mouse.get_pressed()[0]:
+                pos = pygame.mouse.get_pos()
+                if not pos[0] >= 630:
+                    value = 1 if img.lower() == 'rat' else 2
+                    self.update_grid(pos, value=value)
+        return
 
     def main_loop(self):
         self.paint_black()
@@ -182,16 +239,8 @@ class Game:
             CLOCK.tick(120)
             self.draw()
             # Event handling.
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
+            self.event_handler()
             self.mouse_pressed()
-        pygame.quit()
-        sys.exit(1)
-
-    @staticmethod
-    def center(n):
-        return (WIDTH-n)//2
 
     def menu_helper(self):
         SCREEN.fill(BLACK)
