@@ -42,6 +42,7 @@ class Node:
             neighbors.append((self.y, self.x-1))
         return neighbors
 
+
 class Cell:
     def __init__(self, position, value=0, is_wall=False, width=9, height=9):
         self.y, self.x = position
@@ -50,6 +51,7 @@ class Cell:
         self.height = height
         self.is_wall = is_wall
         self.visited = False
+        self.parent = None
 
     def get_neighbors(self):
         neighbors = []
